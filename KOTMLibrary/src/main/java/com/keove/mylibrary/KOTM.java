@@ -12,10 +12,173 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
 
 public class KOTM extends Activity{
 
+    private enum KotmPrefs {
+        KOTM_SELECTED_LANGUAGE,
+        ONLINE_TRANSLATION_MAP
+    }
+
+
+    /**
+     * Keys here must be same with the type names on json
+     */
+    private enum KotmElement {
+        text,
+        placeholder,
+        value,
+        desc
+    }
+
+
+    // region API METHODS
+    public static void setLanguage(Context context,String lang) {
+        setValueByContext(context,KotmPrefs.KOTM_SELECTED_LANGUAGE.name(),lang);
+    }
+
+    public static String language(Context context) {
+        return valueByContext(context,KotmPrefs.KOTM_SELECTED_LANGUAGE.name(),"");
+    }
+
+    public static void setTranslationMap(Context context, String mapJson) {
+        setValueByContext(context.getApplicationContext(), KotmPrefs.ONLINE_TRANSLATION_MAP.name(), mapJson);
+        return;
+    }
+
+    public static void translate(Context context,Object object) {
+        Field[] fields = object.getClass().getDeclaredFields();
+
+        for (Field field : fields) {
+
+            try {
+                if(field.isAnnotationPresent(KOTMTag.class)) {
+
+                    KOTMTag notation = field.getAnnotation(KOTMTag.class);
+                    String tag = notation.value();
+                    field.setAccessible(true);
+                    
+
+                    if(Button.class.isAssignableFrom(field.getType())) {
+                        Button btn = (Button)field.get(object);
+                        btn.setText(elementValue(context,KotmElement.text,tag));
+                    }
+                    else if(EditText.class.isAssignableFrom(field.getType())) {
+                        EditText et = (EditText)field.get(object);
+                        et.setHint(elementValue(context,KotmElement.placeholder,tag));
+                    }
+                    else if(TextView.class.isAssignableFrom(field.getType())) {
+                        TextView tv = (TextView)field.get(object);
+                        tv.setText(elementValue(context,KotmElement.text,tag));
+                    }
+                    else if(String.class.isAssignableFrom(field.getType())) {
+                        field.set(object,elementValue(context,KotmElement.value,tag));
+                    }
+                    else if(ArrayList.class.isAssignableFrom(field.getType())) {
+                        ParameterizedType ptype = (ParameterizedType) field.getGenericType();
+                        Class pklass = (Class) ptype.getActualTypeArguments()[0];
+                        if(pklass.isAssignableFrom(String.class)) {
+                            field.set(object,elementArrayValue(context,KotmElement.value,tag,String.class));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    public static String translation(Context context,String tag) {
+        return elementValue(context,KotmElement.value,tag);
+    }
+    // endregion
+
+    
+
+    // region INTERNAL METHODS
+
+    private static String elementValue(Context context,KotmElement element, String tag) {
+        try {
+            JSONObject map = new JSONObject(valueByContext(context,KotmPrefs.ONLINE_TRANSLATION_MAP.name(),""));
+            JSONObject node = map.getJSONObject(tag);
+            JSONObject elementNode = node.getJSONObject(element.name());
+            String t = elementNode.getString(language(context));
+            if(t == null) {t="";}
+            return t;
+        }
+        catch (Exception ex) {
+            ex.printStackTrace();
+            return "";
+        }
+    }
+
+    private static <T extends Object> ArrayList<T> elementArrayValue(Context context,KotmElement element,String tag,Class<T> klass) {
+
+        ArrayList<T> list = new ArrayList<>();
+        try {
+            JSONObject map = new JSONObject(valueByContext(context,KotmPrefs.ONLINE_TRANSLATION_MAP.name(),""));
+            JSONObject node = map.getJSONObject(tag);
+            JSONObject elementNode = node.getJSONObject(element.name());
+            JSONArray valueArray = elementNode.getJSONArray(language(context));
+            for (int i = 0; i < valueArray.length(); i++) {
+                String listValue= valueArray.getString(i);
+                // later here, if complex objects will be translatable, we ll have to implemet complex object translation mechanism
+                T t = klass.cast(listValue);
+                list.add(t);
+            }
+        }
+        catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return list;
+    }
+
+    private static void setValueByContext(Context context, String tag, String value) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        prefs.edit().putString(tag, value).commit();
+    }
+
+    private static String valueByContext(Context context, String tag, String defaultvalue) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return prefs.getString(tag, defaultvalue);
+    }
+
+    // endregion
+
+
+
+
+
+
+
+
+    // region DEPRECATED METHODS
+
+    @Deprecated
+    public static String getTranslation(Context context, String text,String languageCode) {
+        String json = valueByContext(context.getApplicationContext(), "translations", text);
+
+        try {
+            JSONObject mainJsonObject = new JSONObject(json);
+            JSONObject textJsonObject = mainJsonObject.getJSONObject(text);
+            JSONObject valueObject= textJsonObject.getJSONObject("value");
+            String t = valueObject.getString(languageCode);
+
+            if(t!=null && t.length() > 0) {
+                return t;
+            }
+            else return text;
+
+        }
+        catch (Exception e) {
+            return text;
+        }
+    }
+
+    @Deprecated
     public static void translate(Object object, String languageCode, Context context) {
 
 
@@ -86,70 +249,10 @@ public class KOTM extends Activity{
         }
     }
 
-
-    private static String getTextForTextsAndButtons(Context context, String annotation, String languageCode) {
-        String json = GetValueByContext(context.getApplicationContext(), "translations", annotation);
-
-        try {
-            JSONObject mainJsonObject = new JSONObject(json);
-            JSONObject translationNodeObject= mainJsonObject.getJSONObject(annotation);
-            JSONObject textObject= translationNodeObject.getJSONObject("text");
-            String t= textObject.getString(languageCode);
-
-            if(t!=null && t.length() > 0) {
-                return t;
-            } else {
-                return "";
-            }
-        }
-        catch (Exception e) {
-            return annotation;
-        }
-    }
-
-    private static String getTextForStrings(Context context, String annotation,String languageCode) {
-        String json = GetValueByContext(context.getApplicationContext(), "translations", annotation);
-
-        try {
-            JSONObject mainJsonObject = new JSONObject(json);
-            JSONObject translationNodeObject= mainJsonObject.getJSONObject(annotation);
-            JSONObject valueObject= translationNodeObject.getJSONObject("value");
-            String t= valueObject.getString(languageCode);
-
-            if(t!=null && t.length() > 0) {
-                return t;
-            } else {
-                return "";
-            }
-        }
-        catch (Exception e) {
-            return annotation;
-        }
-    }
-
-    private static String getTextForEditText(Context context, String annotation,String languageCode) {
-        String json = GetValueByContext(context.getApplicationContext(), "translations", annotation);
-
-        try {
-            JSONObject mainJsonObject = new JSONObject(json);
-            JSONObject translationNodeObject= mainJsonObject.getJSONObject(annotation);
-            JSONObject placeholderObject= translationNodeObject.getJSONObject("placeholder");
-            String t= placeholderObject.getString(languageCode);
-
-            if(t!=null && t.length() > 0) {
-                return t;
-            } else {
-                return "";
-            }
-        }
-        catch (Exception e) {
-            return annotation;
-        }
-    }
-
+    @Deprecated
     private static <T extends Object> ArrayList<T> getTextArrays(Context context, String annotation,String languageCode,Class<T> klass) {
 
-        String json = GetValueByContext(context.getApplicationContext(), "translations", annotation);
+        String json = valueByContext(context.getApplicationContext(), "translations", annotation);
         ArrayList<T> list = new ArrayList<>();
 
         try {
@@ -172,39 +275,69 @@ public class KOTM extends Activity{
         return list;
     }
 
-    public static void setTranslation(Context context, String response) {
-        SetValueByContext(context.getApplicationContext(), "translations", response);
-        return;
-    }
-
-    public static String getTranslation(Context context, String text,String languageCode) {
-        String json = GetValueByContext(context.getApplicationContext(), "translations", text);
+    @Deprecated
+    private static String getTextForTextsAndButtons(Context context, String annotation, String languageCode) {
+        String json = valueByContext(context.getApplicationContext(), "translations", annotation);
 
         try {
             JSONObject mainJsonObject = new JSONObject(json);
-            JSONObject textJsonObject = mainJsonObject.getJSONObject(text);
-            JSONObject valueObject= textJsonObject.getJSONObject("value");
-            String t = valueObject.getString(languageCode);
+            JSONObject translationNodeObject= mainJsonObject.getJSONObject(annotation);
+            JSONObject textObject= translationNodeObject.getJSONObject("text");
+            String t= textObject.getString(languageCode);
 
             if(t!=null && t.length() > 0) {
                 return t;
+            } else {
+                return "";
             }
-            else return text;
-
         }
         catch (Exception e) {
-            return text;
+            return annotation;
+        }
+    }
+    
+    @Deprecated
+    private static String getTextForStrings(Context context, String annotation,String languageCode) {
+        String json = valueByContext(context.getApplicationContext(), "translations", annotation);
+
+        try {
+            JSONObject mainJsonObject = new JSONObject(json);
+            JSONObject translationNodeObject= mainJsonObject.getJSONObject(annotation);
+            JSONObject valueObject= translationNodeObject.getJSONObject("value");
+            String t= valueObject.getString(languageCode);
+
+            if(t!=null && t.length() > 0) {
+                return t;
+            } else {
+                return "";
+            }
+        }
+        catch (Exception e) {
+            return annotation;
         }
     }
 
-    private static void SetValueByContext(Context ctx, String tag, String value) {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(ctx);
-        prefs.edit().putString(tag, value).commit();
+    @Deprecated
+    private static String getTextForEditText(Context context, String annotation,String languageCode) {
+        String json = valueByContext(context.getApplicationContext(), "translations", annotation);
+
+        try {
+            JSONObject mainJsonObject = new JSONObject(json);
+            JSONObject translationNodeObject= mainJsonObject.getJSONObject(annotation);
+            JSONObject placeholderObject= translationNodeObject.getJSONObject("placeholder");
+            String t= placeholderObject.getString(languageCode);
+
+            if(t!=null && t.length() > 0) {
+                return t;
+            } else {
+                return "";
+            }
+        }
+        catch (Exception e) {
+            return annotation;
+        }
     }
 
-    private static String GetValueByContext(Context ctx, String tag, String defaultvalue) {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(ctx);
-        return prefs.getString(tag, defaultvalue);
-    }
+    // endregion
 }
 
