@@ -48,6 +48,10 @@ public class KOTM extends Activity{
         return;
     }
 
+    public static String languageMap(Context context) {
+        return valueByContext(context.getApplicationContext(),KotmPrefs.ONLINE_TRANSLATION_MAP.name(),"");
+    }
+
     public static void translate(Context context,Object object) {
         Field[] fields = object.getClass().getDeclaredFields();
 
