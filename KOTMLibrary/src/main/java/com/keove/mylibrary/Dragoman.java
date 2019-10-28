@@ -15,7 +15,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
 
-public class KOTM extends Activity{
+public class Dragoman extends Activity {
 
     private enum KotmPrefs {
         KOTM_SELECTED_LANGUAGE,
@@ -26,11 +26,40 @@ public class KOTM extends Activity{
     /**
      * Keys here must be same with the type names on json
      */
-    private enum KotmElement {
+    private enum Element {
         text,
         placeholder,
         value,
         desc
+    }
+
+    private static Context context;
+    public static void setContext(Context context) {
+        Dragoman.context = context;
+    }
+
+    public static void setLanguage(String lang) {
+        setLanguage(context,lang);
+    }
+
+    public static String language() {
+        return languageMap(context);
+    }
+
+    public static void setTranslationMap(String map) {
+        setTranslationMap(context,map);
+    }
+
+    public static String map() {
+        return languageMap(context);
+    }
+
+    public static void translate(Object object) {
+        translate(context,object);
+    }
+
+    public static String translation(String tag) {
+        return translation(context,tag);
     }
 
 
@@ -58,33 +87,33 @@ public class KOTM extends Activity{
         for (Field field : fields) {
 
             try {
-                if(field.isAnnotationPresent(KOTMTag.class)) {
+                if(field.isAnnotationPresent(Translate.class)) {
 
-                    KOTMTag notation = field.getAnnotation(KOTMTag.class);
+                    Translate notation = field.getAnnotation(Translate.class);
                     String tag = notation.value();
                     field.setAccessible(true);
                     
 
                     if(Button.class.isAssignableFrom(field.getType())) {
                         Button btn = (Button)field.get(object);
-                        btn.setText(elementValue(context,KotmElement.value,tag));
+                        btn.setText(elementValue(context, Element.value,tag));
                     }
                     else if(EditText.class.isAssignableFrom(field.getType())) {
                         EditText et = (EditText)field.get(object);
-                        et.setHint(elementValue(context,KotmElement.value,tag));
+                        et.setHint(elementValue(context, Element.value,tag));
                     }
                     else if(TextView.class.isAssignableFrom(field.getType())) {
                         TextView tv = (TextView)field.get(object);
-                        tv.setText(elementValue(context,KotmElement.value,tag));
+                        tv.setText(elementValue(context, Element.value,tag));
                     }
                     else if(String.class.isAssignableFrom(field.getType())) {
-                        field.set(object,elementValue(context,KotmElement.value,tag));
+                        field.set(object,elementValue(context, Element.value,tag));
                     }
                     else if(ArrayList.class.isAssignableFrom(field.getType())) {
                         ParameterizedType ptype = (ParameterizedType) field.getGenericType();
                         Class pklass = (Class) ptype.getActualTypeArguments()[0];
                         if(pklass.isAssignableFrom(String.class)) {
-                            field.set(object,elementArrayValue(context,KotmElement.value,tag,String.class));
+                            field.set(object,elementArrayValue(context, Element.value,tag,String.class));
                         }
                     }
                 }
@@ -96,7 +125,7 @@ public class KOTM extends Activity{
     }
 
     public static String translation(Context context,String tag) {
-        return elementValue(context,KotmElement.value,tag);
+        return elementValue(context, Element.value,tag);
     }
     // endregion
 
@@ -104,7 +133,7 @@ public class KOTM extends Activity{
 
     // region INTERNAL METHODS
 
-    private static String elementValue(Context context,KotmElement element, String tag) {
+    private static String elementValue(Context context, Element element, String tag) {
         try {
             JSONObject map = new JSONObject(valueByContext(context,KotmPrefs.ONLINE_TRANSLATION_MAP.name(),""));
             JSONObject node = map.getJSONObject(tag);
@@ -119,7 +148,7 @@ public class KOTM extends Activity{
         }
     }
 
-    private static <T extends Object> ArrayList<T> elementArrayValue(Context context,KotmElement element,String tag,Class<T> klass) {
+    private static <T extends Object> ArrayList<T> elementArrayValue(Context context, Element element, String tag, Class<T> klass) {
 
         ArrayList<T> list = new ArrayList<>();
         try {
