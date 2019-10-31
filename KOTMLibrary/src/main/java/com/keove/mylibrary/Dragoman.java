@@ -70,6 +70,9 @@ public class Dragoman extends Activity {
         return translation(context,element,tag);
     }
 
+    public static String validationString(View view) {
+        return validationString(context,view);
+    }
 
     // region API METHODS
     public static void setLanguage(Context context,String lang) {
