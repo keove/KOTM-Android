@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -16,6 +17,8 @@ import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
 
 public class Dragoman extends Activity {
+
+    public static final int DRAGO = 9990783;
 
     private enum KotmPrefs {
         KOTM_SELECTED_LANGUAGE,
@@ -30,7 +33,8 @@ public class Dragoman extends Activity {
         text,
         placeholder,
         value,
-        desc
+        desc,
+        validation
     }
 
     private static Context context;
@@ -62,6 +66,10 @@ public class Dragoman extends Activity {
         return translation(context,tag);
     }
 
+    public static String translation(Element element,String tag) {
+        return translation(context,element,tag);
+    }
+
 
     // region API METHODS
     public static void setLanguage(Context context,String lang) {
@@ -81,6 +89,16 @@ public class Dragoman extends Activity {
         return valueByContext(context.getApplicationContext(),KotmPrefs.ONLINE_TRANSLATION_MAP.name(),"");
     }
 
+    public static String validationString(Context context, View object) {
+        try {
+            String string = (String)object.getTag(DRAGO);
+            return string;
+        }
+        catch (Exception e) {
+            return "";
+        }
+    }
+
     public static void translate(Context context,Object object) {
         Field[] fields = object.getClass().getDeclaredFields();
 
@@ -97,14 +115,17 @@ public class Dragoman extends Activity {
                     if(Button.class.isAssignableFrom(field.getType())) {
                         Button btn = (Button)field.get(object);
                         btn.setText(elementValue(context, Element.value,tag));
+                        btn.setTag(DRAGO,elementValue(context,Element.validation,tag));
                     }
                     else if(EditText.class.isAssignableFrom(field.getType())) {
                         EditText et = (EditText)field.get(object);
                         et.setHint(elementValue(context, Element.value,tag));
+                        et.setTag(DRAGO,elementValue(context,Element.validation,tag));
                     }
                     else if(TextView.class.isAssignableFrom(field.getType())) {
                         TextView tv = (TextView)field.get(object);
                         tv.setText(elementValue(context, Element.value,tag));
+                        tv.setTag(DRAGO,elementValue(context,Element.validation,tag));
                     }
                     else if(String.class.isAssignableFrom(field.getType())) {
                         field.set(object,elementValue(context, Element.value,tag));
@@ -127,6 +148,11 @@ public class Dragoman extends Activity {
     public static String translation(Context context,String tag) {
         return elementValue(context, Element.value,tag);
     }
+
+    public static String translation(Context context,Element element,String tag) {
+        return elementValue(context,element,tag);
+    }
+
     // endregion
 
     
